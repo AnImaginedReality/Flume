@@ -9,11 +9,21 @@ namespace AIR.Flume
 {
     public class FlumeServiceContainer : MonoBehaviour
     {
-        public event Action<FlumeServiceContainer> OnContainerReady;
         private static Injector _injector;
+        private static Queue<IDependent> _earlyDependents = new Queue<IDependent>();
 
         private ServiceRegister _register = new ServiceRegister();
-        private static Queue<IDependent> _earlyDependents = new Queue<IDependent>();
+
+        public event Action<FlumeServiceContainer> OnContainerReady;
+
+        public static void InjectThis(Dependent dependent) =>
+            InjectThis(dependent as IDependent);
+
+        public static void InjectThis(DependentBehaviour dependentBehaviour) =>
+            InjectThis(dependentBehaviour as IDependent);
+
+        public static void InjectThis(ScriptableDependent dependentBehaviour) =>
+            InjectThis(dependentBehaviour as IDependent);
 
         public FlumeServiceContainer Register<TService>()
             where TService : class
@@ -33,42 +43,32 @@ namespace AIR.Flume
             where TService : class
             where TImplementation : TService
         {
-            if (typeof(TImplementation).IsSubclassOf(typeof(MonoBehaviour))) {
+            if (typeof(TImplementation).IsSubclassOf(typeof(MonoBehaviour)))
+            {
                 Component monoBehaviour = FindObjectsOfType<MonoBehaviour>()
                     .FirstOrDefault(mb => mb is TImplementation);
                 if (monoBehaviour == null)
                     monoBehaviour = gameObject.AddComponent(typeof(TImplementation));
                 _register.Register(monoBehaviour as TService);
-            } else {
+            }
+            else
+            {
                 _register.Register<TService, TImplementation>();
             }
 
             return this;
         }
 
-        public static void InjectThis(Dependent dependent) =>
-            InjectThis(dependent as IDependent);
-
-        public static void InjectThis(DependentBehaviour dependentBehaviour) =>
-            InjectThis(dependentBehaviour as IDependent);
-
-        public static void InjectThis(ScriptableDependent dependentBehaviour) =>
-            InjectThis(dependentBehaviour as IDependent);
-
         internal object Resolve(Type dependentType, IDependent dependent)
         {
-            try {
+            try
+            {
                 return _register.Resolve(dependentType);
-            } catch (MissingServiceException) {
+            }
+            catch (MissingServiceException)
+            {
                 throw new MissingDependencyException(dependentType, dependent);
             }
-        }
-
-        private void OnDestroy()
-        {
-            _injector = null;
-            _register.Dispose();
-            _earlyDependents.Clear();
         }
 
         private static void InjectThis(IDependent dependentBehaviour)
@@ -77,6 +77,13 @@ namespace AIR.Flume
                 _earlyDependents.Enqueue(dependentBehaviour);
             else
                 _injector?.InjectDependencies(dependentBehaviour);
+        }
+
+        private void OnDestroy()
+        {
+            _injector = null;
+            _register.Dispose();
+            _earlyDependents.Clear();
         }
 
         private void Awake()
